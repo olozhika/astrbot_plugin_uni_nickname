@@ -9,11 +9,7 @@
     "description": "工作模式",
     "type": "string",
     "default": "system_replace",
-    "options": [
-      "prompt",
-      "system_replace",
-      "global_replace"
-    ],
+    "options": ["prompt", "system_replace", "global_replace"],
     "hint": "prompt: 在提示词里告诉AI如何称呼群友；system_replace: 修改Astrbot发给AI的身份标签，不修改消息文本，需在Astrbot设置中开启用户识别；global_replace: 直接替换发送给AI的消息文本（有语义破坏风险）"
   },
   "enable_session_replace": {

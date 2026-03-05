@@ -4,9 +4,14 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import ProviderRequest
 import textwrap
-import json
 
-@register("uni_nickname", "Hakuin123", "统一昵称插件 - 使用管理员配置的映射表统一用户昵称", "1.2.0")
+
+@register(
+    "uni_nickname",
+    "Hakuin123",
+    "统一昵称插件 - 使用管理员配置的映射表统一用户昵称",
+    "1.2.0",
+)
 class UniNicknamePlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -24,7 +29,7 @@ class UniNicknamePlugin(Star):
         for item in mapping_list:
             if not isinstance(item, str) or "," not in item:
                 continue
-            
+
             # 按逗号分割，只分割第一个逗号（防止昵称中包含逗号）
             parts = item.split(",", 1)
             if len(parts) == 2:
@@ -36,7 +41,9 @@ class UniNicknamePlugin(Star):
 
     def _save_mappings(self, mappings: dict):
         """将映射字典保存到配置文件并更新缓存"""
-        mapping_list = [f"{user_id},{nickname}" for user_id, nickname in mappings.items()]
+        mapping_list = [
+            f"{user_id},{nickname}" for user_id, nickname in mappings.items()
+        ]
         self.config["nickname_mappings"] = mapping_list
         self.config.save_config()
         # 同步更新内存缓存，确保下一次 LLM 请求立即生效
@@ -51,25 +58,27 @@ class UniNicknamePlugin(Star):
         # 捕获组1: 从 <system_reminder> 到 "Nickname: " 之前的部分
         # 捕获组2: 用户ID
         # 捕获组3: 原始的 Nickname 值（将被替换）
-        pattern = r'(<system_reminder>.*?User ID:\s*(\d+),\s*Nickname:\s*)([^\n]+)'
-        
+        pattern = r"(<system_reminder>.*?User ID:\s*(\d+),\s*Nickname:\s*)([^\n]+)"
+
         def replacer(match):
-            prefix = match.group(1)   # 包括 <system_reminder>...User ID: xxx, Nickname:
+            prefix = match.group(1)  # 包括 <system_reminder>...User ID: xxx, Nickname:
             user_id = match.group(2)  # 用户ID
             original_nick = match.group(3)  # 原始昵称
             if user_id in mappings:
                 custom_nick = mappings[user_id]
                 if custom_nick != original_nick:
-                    logger.debug(f"[uni_nickname] 智能替换：用户 {user_id} 的 Nickname 从 '{original_nick}' 替换为 '{custom_nick}'")
+                    logger.debug(
+                        f"[uni_nickname] 智能替换：用户 {user_id} 的 Nickname 从 '{original_nick}' 替换为 '{custom_nick}'"
+                    )
                 return prefix + custom_nick
             else:
                 return match.group(0)  # 不替换
-        
+
         return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
 
     def _smart_replace_in_textpart(self, part, mappings: dict) -> bool:
         """对 TextPart 对象应用智能替换，返回是否修改"""
-        if not hasattr(part, 'text') or not isinstance(part.text, str):
+        if not hasattr(part, "text") or not isinstance(part.text, str):
             return False
         new_text = self._smart_replace_in_text(part.text, mappings)
         if new_text != part.text:
@@ -79,7 +88,7 @@ class UniNicknamePlugin(Star):
 
     def _replace_all_in_textpart(self, part, replace_map: dict) -> bool:
         """对 TextPart 对象应用全局替换，返回是否修改"""
-        if not hasattr(part, 'text') or not isinstance(part.text, str):
+        if not hasattr(part, "text") or not isinstance(part.text, str):
             return False
         new_text = part.text
         for orig, custom in replace_map.items():
@@ -118,8 +127,12 @@ class UniNicknamePlugin(Star):
                             modified = True
                 if modified:
                     replace_count += 1
-                    logger.debug(f"[uni_nickname] 已智能替换历史记录第 {i} 条多模态消息")
-        logger.info(f"[uni_nickname] 智能替换历史记录执行完毕，共修改 {replace_count} 条消息。")
+                    logger.debug(
+                        f"[uni_nickname] 已智能替换历史记录第 {i} 条多模态消息"
+                    )
+        logger.info(
+            f"[uni_nickname] 智能替换历史记录执行完毕，共修改 {replace_count} 条消息。"
+        )
 
     def _log_current_user_prompt(self, req: ProviderRequest):
         """测试用，输出当前用户看到的完整输入（合并 prompt、contexts 中的用户消息、extra_user_content_parts）"""
@@ -131,7 +144,7 @@ class UniNicknamePlugin(Star):
                 all_texts.append(req.prompt)
 
             # 从 contexts 添加最后一条用户消息
-            if hasattr(req, 'contexts') and req.contexts:
+            if hasattr(req, "contexts") and req.contexts:
                 for ctx in reversed(req.contexts):
                     if isinstance(ctx, dict) and ctx.get("role") == "user":
                         if content := ctx.get("content"):
@@ -149,11 +162,14 @@ class UniNicknamePlugin(Star):
                         break  # 只取最后一条用户消息
 
             # 从 extra_user_content_parts 添加
-            if hasattr(req, 'extra_user_content_parts') and req.extra_user_content_parts:
+            if (
+                hasattr(req, "extra_user_content_parts")
+                and req.extra_user_content_parts
+            ):
                 all_texts.extend(
                     part.text
                     for part in req.extra_user_content_parts
-                    if hasattr(part, 'text') and part.text
+                    if hasattr(part, "text") and part.text
                 )
             if all_texts:
                 combined = "\n".join(all_texts)
@@ -164,7 +180,9 @@ class UniNicknamePlugin(Star):
             logger.error(f"[uni_nickname] 日志输出失败: {e}")
 
     @filter.on_llm_request()
-    async def replace_nickname_in_llm_request(self, event: AstrMessageEvent, req: ProviderRequest, *args, **kwargs):
+    async def replace_nickname_in_llm_request(
+        self, event: AstrMessageEvent, req: ProviderRequest, *args, **kwargs
+    ):
         """在LLM请求前根据配置的模式处理昵称（使用内存缓存）"""
         try:
             sender_id = event.get_sender_id()
@@ -180,16 +198,22 @@ class UniNicknamePlugin(Star):
                 cached_original = self._original_nickname_cache.get(sender_id)
                 if cached_original != original_nickname:
                     if cached_original:
-                        logger.debug(f"[uni_nickname] 检测到用户 {sender_id} 原始昵称变更: '{cached_original}' -> '{original_nickname}'，刷新缓存")
+                        logger.debug(
+                            f"[uni_nickname] 检测到用户 {sender_id} 原始昵称变更: '{cached_original}' -> '{original_nickname}'，刷新缓存"
+                        )
                     self._original_nickname_cache[sender_id] = original_nickname
 
             if sender_id in mappings:
                 custom_nickname = mappings[sender_id]
-                logger.info(f"[uni_nickname] 命中映射: {sender_id} -> {custom_nickname} (平台获取到的原始昵称: {original_nickname})")
+                logger.info(
+                    f"[uni_nickname] 命中映射: {sender_id} -> {custom_nickname} (平台获取到的原始昵称: {original_nickname})"
+                )
 
                 # 安全性检查：如果原始昵称不存在或为空字符串，跳过处理，防止 replace("", "...") 引发 Bug
                 if not original_nickname:
-                    logger.warning(f"[uni_nickname] 无法获取用户 {sender_id} 的原始昵称（Platform Name 为空），跳过映射处理。")
+                    logger.warning(
+                        f"[uni_nickname] 无法获取用户 {sender_id} 的原始昵称（Platform Name 为空），跳过映射处理。"
+                    )
                     return
 
                 working_mode = self.config.get("working_mode", "system_replace")
@@ -213,12 +237,17 @@ class UniNicknamePlugin(Star):
                         req.system_prompt += instruction
                     else:
                         req.system_prompt = instruction
-                    logger.debug(f"[uni_nickname] 提示词模式：向 System Prompt 注入昵称引导 ({original_nickname} -> {custom_nickname})")
+                    logger.debug(
+                        f"[uni_nickname] 提示词模式：向 System Prompt 注入昵称引导 ({original_nickname} -> {custom_nickname})"
+                    )
 
                 elif working_mode == "system_replace":
                     logger.debug("[uni_nickname] 系统标签替换模式激活")
                     # 仅替换系统标签
-                    if hasattr(req, 'extra_user_content_parts') and req.extra_user_content_parts:
+                    if (
+                        hasattr(req, "extra_user_content_parts")
+                        and req.extra_user_content_parts
+                    ):
                         for part in req.extra_user_content_parts:
                             self._smart_replace_in_textpart(part, mappings)
                     if req.prompt:
@@ -236,7 +265,10 @@ class UniNicknamePlugin(Star):
                             replace_map[orig_nick] = custom_nick
 
                     # 1. 处理 extra_user_content_parts
-                    if hasattr(req, 'extra_user_content_parts') and req.extra_user_content_parts:
+                    if (
+                        hasattr(req, "extra_user_content_parts")
+                        and req.extra_user_content_parts
+                    ):
                         for part in req.extra_user_content_parts:
                             self._replace_all_in_textpart(part, replace_map)
 
@@ -247,17 +279,21 @@ class UniNicknamePlugin(Star):
                         for orig_nick, custom_nick in replace_map.items():
                             if orig_nick in new_prompt:
                                 new_prompt = new_prompt.replace(orig_nick, custom_nick)
-                                replaced_pairs.append(f"'{orig_nick}' -> '{custom_nick}'")
+                                replaced_pairs.append(
+                                    f"'{orig_nick}' -> '{custom_nick}'"
+                                )
                         if new_prompt != req.prompt:
                             req.prompt = new_prompt
-                            logger.info(f"[uni_nickname] 已修改 req.prompt，替换了: {', '.join(replaced_pairs)}")
+                            logger.info(
+                                f"[uni_nickname] 已修改 req.prompt，替换了: {', '.join(replaced_pairs)}"
+                            )
 
                     # 3. 处理 contexts
-                    if enable_session and hasattr(req, 'contexts') and req.contexts:
+                    if enable_session and hasattr(req, "contexts") and req.contexts:
                         self._replace_nicknames_in_contexts(req, replace_map)
 
-                                # 测试用，输出完整输入日志
-                                # self._log_current_user_prompt(req)
+                        # 测试用，输出完整输入日志
+                        # self._log_current_user_prompt(req)
 
             else:
                 logger.debug(f"[uni_nickname] 用户 {sender_id} 不在映射表中，跳过。")
@@ -268,24 +304,26 @@ class UniNicknamePlugin(Star):
     def _replace_nicknames_in_contexts(self, req: ProviderRequest, replace_map: dict):
         """在历史记录 (req.contexts) 中替换所有已知用户的昵称（传统模式）"""
         logger.info("[uni_nickname] 历史记录替换已开启，开始扫描 contexts...")
-        
-        if not hasattr(req, 'contexts') or not req.contexts:
+
+        if not hasattr(req, "contexts") or not req.contexts:
             logger.debug("[uni_nickname] 未发现可替换的历史记录")
             return
-        
+
         if not replace_map:
-            logger.info("[uni_nickname] 原始昵称缓存为空，暂无可替换的昵称映射（用户需先发送过消息）")
+            logger.info(
+                "[uni_nickname] 原始昵称缓存为空，暂无可替换的昵称映射（用户需先发送过消息）"
+            )
             return
-        
+
         replace_count = 0
         for i, ctx in enumerate(req.contexts):
             if not isinstance(ctx, dict):
                 continue
-            
+
             content = ctx.get("content")
             if content is None:
                 continue
-            
+
             # 处理字符串类型的 content
             if isinstance(content, str):
                 new_content = content
@@ -296,7 +334,7 @@ class UniNicknamePlugin(Star):
                     ctx["content"] = new_content
                     replace_count += 1
                     logger.debug(f"[uni_nickname] 已修改历史记录第 {i} 条消息")
-            
+
             # 处理列表类型的 content（多模态消息）
             elif isinstance(content, list):
                 modified = False
@@ -313,8 +351,10 @@ class UniNicknamePlugin(Star):
                 if modified:
                     replace_count += 1
                     logger.debug(f"[uni_nickname] 已修改历史记录第 {i} 条多模态消息")
-        
-        logger.info(f"[uni_nickname] 历史记录替换执行完毕，共修改 {replace_count} 条消息。")
+
+        logger.info(
+            f"[uni_nickname] 历史记录替换执行完毕，共修改 {replace_count} 条消息。"
+        )
 
     # 以下命令组保持不变
     @filter.command_group("nickname")
@@ -326,8 +366,8 @@ class UniNicknamePlugin(Star):
     @nickname_group.command("set")
     async def set_nickname(self, event: AstrMessageEvent, user_id: str, nickname: str):
         """
-                  设置用户昵称映射
-                  用法: /nickname set <用户ID> <昵称>
+        设置用户昵称映射
+        用法: /nickname set <用户ID> <昵称>
         """
         try:
             # 获取当前映射
@@ -336,7 +376,7 @@ class UniNicknamePlugin(Star):
             mappings[user_id] = nickname
             # 保存配置
             self._save_mappings(mappings)
-            
+
             yield event.plain_result(f"✅ 已设置用户 {user_id} 的昵称为: {nickname}")
             logger.info(f"管理员设置昵称映射: {user_id} -> {nickname}")
         except Exception as e:
@@ -346,21 +386,21 @@ class UniNicknamePlugin(Star):
     @nickname_group.command("setme")
     async def set_my_nickname(self, event: AstrMessageEvent, nickname: str):
         """
-                  为当前用户设置昵称
-                  用法: /nickname setme <昵称>
+        为当前用户设置昵称
+        用法: /nickname setme <昵称>
         """
         try:
             user_id = event.get_sender_id()
-            
+
             # 获取当前映射
             mappings = self._parse_mappings()
-            
+
             # 添加或更新映射
             mappings[user_id] = nickname
-            
+
             # 保存配置
             self._save_mappings(mappings)
-            
+
             yield event.plain_result(f"✅ 已将您的昵称设置为: {nickname}")
             logger.info(f"管理员为自己设置昵称: {user_id} -> {nickname}")
         except Exception as e:
@@ -370,21 +410,23 @@ class UniNicknamePlugin(Star):
     @nickname_group.command("remove")
     async def remove_nickname(self, event: AstrMessageEvent, user_id: str):
         """
-                  删除用户昵称映射
-                  用法: /nickname remove <用户ID>
+        删除用户昵称映射
+        用法: /nickname remove <用户ID>
         """
         try:
             # 获取当前映射
             mappings = self._parse_mappings()
-            
+
             if user_id in mappings:
                 nickname = mappings[user_id]
                 del mappings[user_id]
-                
+
                 # 保存配置
                 self._save_mappings(mappings)
-                
-                yield event.plain_result(f"✅ 已删除用户 {user_id} 的昵称映射（原昵称: {nickname}）")
+
+                yield event.plain_result(
+                    f"✅ 已删除用户 {user_id} 的昵称映射（原昵称: {nickname}）"
+                )
                 logger.info(f"管理员删除昵称映射: {user_id}")
             else:
                 yield event.plain_result(f"⚠️ 用户 {user_id} 没有设置昵称映射")
@@ -395,21 +437,21 @@ class UniNicknamePlugin(Star):
     @nickname_group.command("list")
     async def list_nicknames(self, event: AstrMessageEvent):
         """
-                  查看所有昵称映射
-                  用法: /nickname list
+        查看所有昵称映射
+        用法: /nickname list
         """
         try:
             mappings = self._parse_mappings()
             if not mappings:
                 yield event.plain_result("📋 当前没有任何昵称映射")
                 return
-            
+
             # 构建列表消息
             result = "📋 昵称映射列表:\n" + "=" * 30 + "\n"
             for i, (user_id, nickname) in enumerate(mappings.items(), 1):
                 result += f"{i}. {user_id} → {nickname}\n"
             result += "=" * 30 + f"\n共 {len(mappings)} 个映射"
-            
+
             yield event.plain_result(result)
         except Exception as e:
             yield event.plain_result(f"❌ 查询失败: {str(e)}")
