@@ -56,7 +56,7 @@ class UniNicknamePlugin(Star):
         # 同步更新内存缓存，确保下一次 LLM 请求立即生效
         self._mappings_cache = mappings
 
-    def _smart_replace_in_text(self, text: str, mappings: dict) -> str:
+    def _system_replace_in_text(self, text: str, mappings: dict) -> str:
         """
         智能替换：只替换形如 <system_reminder>...User ID: 123, Nickname: 原始名 中的原始名
         如果该用户ID在 mappings 中，则将 Nickname 替换为自定义昵称
@@ -83,12 +83,12 @@ class UniNicknamePlugin(Star):
 
         return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
 
-    def _smart_replace_in_textpart(self, part, mappings: dict) -> bool:
+    def _system_replace_in_textpart(self, part, mappings: dict) -> bool:
         """对 TextPart 对象应用智能替换，返回是否修改"""
         text = self._get_textpart_text(part)
         if text is None:
             return False
-        new_text = self._smart_replace_in_text(text, mappings)
+        new_text = self._system_replace_in_text(text, mappings)
         if new_text != text:
             self._set_textpart_text(part, new_text)
             return True
@@ -151,7 +151,7 @@ class UniNicknamePlugin(Star):
             "[uni_nickname] 未检测到 <system_reminder> 身份标签。请检查 AstrBot 设置中是否已开启用户识别（provider_settings.identifier）。"
         )
 
-    def _smart_replace_in_contexts(self, contexts: list, mappings: dict):
+    def _system_replace_in_contexts(self, contexts: list, mappings: dict):
         """遍历 contexts，对每条消息的内容应用智能替换"""
         if not contexts:
             return
@@ -163,7 +163,7 @@ class UniNicknamePlugin(Star):
             if content is None:
                 continue
             if isinstance(content, str):
-                new_content = self._smart_replace_in_text(content, mappings)
+                new_content = self._system_replace_in_text(content, mappings)
                 if new_content != content:
                     ctx["content"] = new_content
                     replace_count += 1
@@ -173,7 +173,7 @@ class UniNicknamePlugin(Star):
                 for item in content:
                     if isinstance(item, dict) and item.get("type") == "text":
                         text = item.get("text", "")
-                        new_text = self._smart_replace_in_text(text, mappings)
+                        new_text = self._system_replace_in_text(text, mappings)
                         if new_text != text:
                             item["text"] = new_text
                             modified = True
@@ -303,9 +303,9 @@ class UniNicknamePlugin(Star):
                         and req.extra_user_content_parts
                     ):
                         for part in req.extra_user_content_parts:
-                            self._smart_replace_in_textpart(part, mappings)
+                            self._system_replace_in_textpart(part, mappings)
                     if req.prompt:
-                        req.prompt = self._smart_replace_in_text(req.prompt, mappings)
+                        req.prompt = self._system_replace_in_text(req.prompt, mappings)
 
                 elif working_mode == "global_replace":
                     logger.debug("[uni_nickname] 全局替换模式激活")
