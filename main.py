@@ -493,7 +493,7 @@ class UniNicknamePlugin(Star):
     @register_llm_tool('set_nickname')
     def set_nickname_mapping(self, id: str, nickname: str) -> str:
         """
-        为用户设置昵称映射
+        为聊天对象设置昵称，可在昵称显示有问题或在刚认识新朋友的时候使用；不要改变老朋友的昵称，否则你就分不清对方是谁啦
         
         Args:
             id: 用户 ID
