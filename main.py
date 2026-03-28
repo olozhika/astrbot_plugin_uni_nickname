@@ -4,6 +4,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import ProviderRequest
 import textwrap
+from astrbot.api.llm_tool import LLMTool
 
 
 @register(
@@ -489,6 +490,53 @@ class UniNicknamePlugin(Star):
             yield event.plain_result(f"❌ 删除失败: {str(e)}")
             logger.error(f"删除昵称映射失败: {e}")
 
+    @register_llm_tool('set_nickname')
+    def set_nickname_mapping(self, id: str, nickname: str) -> str:
+        """
+        为用户设置昵称映射
+        
+        Args:
+            id: 用户 ID
+            nickname: 要设为的昵称
+        
+        Returns:
+            操作结果的 JSON 字符串
+        """
+        try:
+            # 获取当前映射
+            mappings = self._parse_mappings()
+            
+            # 验证参数
+            if not id or not id.strip():
+                return '{"success": false, "message": "用户 ID 不能为空"}'
+            
+            if not nickname or not nickname.strip():
+                return '{"success": false, "message": "昵称不能为空"}'
+            
+            id = id.strip()
+            nickname = nickname.strip()
+            
+            # 添加或更新映射
+            old_nickname = mappings.get(id)
+            mappings[id] = nickname
+            
+            # 保存到配置文件
+            self._save_mappings(mappings)
+            
+            if old_nickname:
+                message = f"已将用户 {id} 的昵称从 '{old_nickname}' 更新为 '{nickname}'"
+            else:
+                message = f"已为用户 {id} 设置昵称 '{nickname}'"
+            
+            logger.info(f"[uni_nickname LLM Tool] {message}")
+            
+            return f'{{"success": true, "message": "{message}"}}'
+            
+        except Exception as e:
+            error_msg = f"设置昵称映射失败: {str(e)}"
+            logger.error(f"[uni_nickname LLM Tool] {error_msg}")
+            return f'{{"success": false, "message": "{error_msg}"}}'
+        
     @nickname_group.command("list")
     async def list_nicknames(self, event: AstrMessageEvent):
         """
